@@ -134,6 +134,8 @@ export const api = {
         `${BASE_URL}/produce${qs ? `?${qs}` : ''}`
       );
     },
+    getCrops: () =>
+      fetchJson<{ success: boolean; data: any[] }>(`${BASE_URL}/produce/crops`),
     getById: (id: number | string) =>
       fetchJson<{ success: boolean; data: any }>(`${BASE_URL}/produce/${id}`),
     create: (data: {

@@ -1,5 +1,5 @@
 import { db } from '../../db/index.ts';
-import { crops, marketPrices, users, bids, buyerProfiles } from '../../db/schema.ts';
+import { crops, marketPrices, users, bids, buyerProfiles, produceListings } from '../../db/schema.ts';
 import { eq, desc, sql } from 'drizzle-orm';
 import { logger } from '../logger.ts';
 
@@ -167,13 +167,18 @@ export async function preparePriceFeatures(input: RawPriceInput): Promise<Prepar
   const activeNearbyBuyersCount = Math.max(2, allBuyers.length);
 
   // Recent bids on this crop
-  const cropBids = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(bids)
-    .innerJoin(crops, eq(bids.listingId, crops.id))
-    .where(eq(crops.id, cropId));
+  let recentBidsCount = 3;
+  try {
+    const cropBids = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(bids)
+      .innerJoin(produceListings, eq(bids.listingId, produceListings.id))
+      .where(eq(produceListings.cropId, cropId));
 
-  const recentBidsCount = Number(cropBids[0]?.count || 0) + 3; // Baseline realistic activity
+    recentBidsCount = Number(cropBids[0]?.count || 0) + 3; // Baseline realistic activity
+  } catch (err) {
+    logger.warn('Could not query recent bids on crop:', { error: String(err), cropId });
+  }
 
   let demandLevel: 'high' | 'moderate' | 'low' = 'moderate';
   if (recentPriceTrend === 'up' && activeNearbyBuyersCount >= 3) {

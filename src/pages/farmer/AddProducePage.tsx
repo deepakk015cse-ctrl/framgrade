@@ -221,6 +221,30 @@ export const AddProducePage: React.FC = () => {
   const [aiRecommendation, setAiRecommendation] = useState<PriceRecommendationData | null>(null);
   const [isLoadingAi, setIsLoadingAi] = useState<boolean>(false);
 
+  // Load verified crops catalog from PostgreSQL backend
+  useEffect(() => {
+    async function loadBackendCrops() {
+      try {
+        const res = await api.produce.getCrops();
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          // Verify that backend crops are loaded
+          if (import.meta.env.DEV) {
+            console.info(`[FarmGrade Backend] Successfully loaded ${res.data.length} crops from PostgreSQL.`);
+          }
+        }
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.error(
+            '[FarmGrade Dev Alert] Failed to load crop catalog from /api/produce/crops:',
+            err,
+            '\nActionable fix: Verify the crops table exists and is accessible in PostgreSQL.'
+          );
+        }
+      }
+    }
+    loadBackendCrops();
+  }, []);
+
   // Fetch real AI price recommendation from backend API
   const fetchPriceRecommendation = async () => {
     setIsLoadingAi(true);
@@ -237,7 +261,14 @@ export const AddProducePage: React.FC = () => {
         setAiRecommendation(res.data);
       }
     } catch (err) {
-      console.warn('Backend price recommendation fallback:', err);
+      if (import.meta.env.DEV) {
+        console.error(
+          '[FarmGrade Dev Alert] AI Price Recommendation query failed:',
+          err,
+          '\nActionable fix: Verify POST /api/ai/price-recommendation endpoint and the feature preparation join on produceListings/crops.'
+        );
+      }
+      console.warn('Backend price recommendation fallback active:', err);
     } finally {
       setIsLoadingAi(false);
     }

@@ -1722,7 +1722,7 @@ const handleGetNetRealisation = async (req: AuthRequest, res: any) => {
             dbOffers.push({
               id: String(row.bid.id),
               buyerName: row.buyer?.name || 'Verified Buyer',
-              location: row.buyer?.district || 'Regional Hub',
+              location: (row.buyer as any)?.district || 'Regional Hub',
               pickupOption: row.bid.notes?.includes('Farm Gate')
                 ? 'Buyer Pickup from Farm Gate'
                 : 'Regional Delivery / Pickup',

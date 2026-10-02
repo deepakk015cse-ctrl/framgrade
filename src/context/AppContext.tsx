@@ -1269,44 +1269,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [token, user]);
 
-  // Fetch initial data from backend API
+  // Fetch initial data from backend API with isolated error handling & actionable dev warnings
   useEffect(() => {
     async function loadBackendData() {
+      const defaultCropImages: Record<string, string> = {
+        tomato: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=600&auto=format&fit=crop&q=80',
+        onion: 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?w=600&auto=format&fit=crop&q=80',
+        potato: 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=600&auto=format&fit=crop&q=80',
+        paddy: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=600&auto=format&fit=crop&q=80',
+        banana: 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=600&auto=format&fit=crop&q=80',
+      };
+
+      // 1. Fetch live produce listings (joined with crops and users)
       try {
-        // 1. Fetch live produce listings
         const produceRes = await api.produce.getAll();
-        if (produceRes.success && produceRes.data.length > 0) {
-          const mappedListings: ProduceListing[] = produceRes.data.map((item: any) => ({
-            id: String(item.id),
-            cropName: item.cropName ? `${item.cropName} ${item.cropLocalName ? `(${item.cropLocalName})` : ''}` : 'Produce',
-            variety: item.cropCategory || 'Standard',
-            quantity: item.quantity,
-            unit: item.unit || 'kg',
-            grade: (item.quality?.includes('Grade B') ? 'Grade B' : item.quality?.includes('Grade C') ? 'Grade C' : 'Grade A') as any,
-            qualityLabel: (item.quality?.includes('Premium') ? 'Premium' : item.quality?.includes('Very Good') ? 'Very Good' : 'Good') as any,
-            basePriceExpected: item.expectedPrice || item.suggestedMinPrice || 30,
-            aiRecommendedPriceMin: item.suggestedMinPrice || 25,
-            aiRecommendedPriceMax: item.suggestedMaxPrice || 35,
-            harvestDate: item.availableDate || 'Today',
-            availableDate: item.availableDate || 'Immediate',
-            listingDate: new Date(item.createdAt).toISOString().split('T')[0],
-            location: item.village || 'Namakkal',
-            district: 'Namakkal',
-            distanceKm: 8,
-            farmerName: item.farmerName || 'Farmer Partner',
-            farmerPhone: item.farmerPhone || '+91 98765 43210',
-            status: (item.status === 'sold' ? 'sold' : item.status === 'negotiating' ? 'negotiating' : 'active') as any,
-            bidsCount: 1,
-            createdAt: item.createdAt,
-            kioskAssisted: false,
-            notes: item.notes || 'Verified harvest lot.'
-          }));
+        if (produceRes.success && Array.isArray(produceRes.data) && produceRes.data.length > 0) {
+          const mappedListings: ProduceListing[] = produceRes.data.map((item: any) => {
+            const rawCrop = String(item.cropName || '').toLowerCase();
+            const cropKey = (rawCrop.includes('onion')
+              ? 'onion'
+              : rawCrop.includes('potato')
+              ? 'potato'
+              : rawCrop.includes('paddy') || rawCrop.includes('rice')
+              ? 'paddy'
+              : rawCrop.includes('banana')
+              ? 'banana'
+              : rawCrop.includes('tomato')
+              ? 'tomato'
+              : 'other') as any;
+
+            const imageUrl = item.photoUrl || defaultCropImages[cropKey] || defaultCropImages.tomato;
+
+            return {
+              id: String(item.id),
+              cropKey,
+              cropName: item.cropName ? `${item.cropName}${item.cropLocalName ? ` (${item.cropLocalName})` : ''}` : 'Produce',
+              cropTamilName: item.cropLocalName || undefined,
+              variety: item.cropCategory || 'Standard Quality',
+              quantity: Number(item.quantity) || 100,
+              unit: (item.unit || 'kg') as any,
+              grade: (item.quality?.includes('Grade B') ? 'Grade B' : item.quality?.includes('Grade C') ? 'Grade C' : 'Grade A') as any,
+              qualityLabel: (item.quality?.includes('Premium') ? 'Premium' : item.quality?.includes('Very Good') ? 'Very Good' : 'Good') as any,
+              basePriceExpected: Number(item.expectedPrice) || Number(item.suggestedMinPrice) || 30,
+              aiRecommendedPriceMin: Number(item.suggestedMinPrice) || 25,
+              aiRecommendedPriceMax: Number(item.suggestedMaxPrice) || 35,
+              harvestDate: item.availableDate || 'Today',
+              availableDate: item.availableDate || 'Immediate Pickup',
+              listingDate: item.createdAt ? new Date(item.createdAt).toISOString().split('T')[0] : 'Today',
+              location: item.village || 'Namakkal',
+              district: 'Namakkal',
+              distanceKm: 8,
+              farmerName: item.farmerName || 'Murugan Selvam',
+              farmerPhone: item.farmerPhone || '+91 98765 43210',
+              imageUrl,
+              status: (item.status === 'sold' ? 'sold' : item.status === 'negotiating' ? 'negotiating' : 'active') as any,
+              bidsCount: Number(item.bidsCount) || 0,
+              createdAt: item.createdAt || new Date().toISOString(),
+              kioskAssisted: false,
+              notes: item.notes || 'Verified harvest lot.'
+            };
+          });
           setListings([sihDemoListing, ...mappedListings]);
         }
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.error(
+            '[FarmGrade Dev Alert] Produce listings failed to load from /api/produce:',
+            err,
+            '\nActionable fix: Verify PostgreSQL is connected, the produce_listings table exists and joins with crops and users.'
+          );
+        }
+        console.warn('Backend produce listings fallback active:', err);
+      }
 
-        // 2. Fetch market benchmark prices
+      // 2. Fetch market benchmark prices
+      try {
         const pricesRes = await api.marketPrices.getAll();
-        if (pricesRes.success && pricesRes.data.length > 0) {
+        if (pricesRes.success && Array.isArray(pricesRes.data) && pricesRes.data.length > 0) {
           const mappedPrices: MandiPrice[] = pricesRes.data.map((p: any) => ({
             id: `mandi-${p.id}`,
             cropName: p.cropName ? `${p.cropName} (${p.cropLocalName || ''})` : 'Crop',
@@ -1330,29 +1369,83 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }));
           setMandiPrices([sihDemoMandiPrice, ...mappedPrices]);
         }
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.error(
+            '[FarmGrade Dev Alert] Market prices failed to load from /api/market-prices:',
+            err,
+            '\nActionable fix: Check market_prices table in PostgreSQL.'
+          );
+        }
+        console.warn('Backend market prices fallback active:', err);
+      }
 
-        // 3. Fetch transactions
+      // 3. Fetch transactions
+      try {
         const txRes = await api.transactions.getAll();
-        if (txRes.success && txRes.data.length > 0) {
+        if (txRes.success && Array.isArray(txRes.data) && txRes.data.length > 0) {
           const mappedSales: SaleTransaction[] = txRes.data.map((tx: any) => ({
             id: String(tx.id),
             listingId: String(tx.listingId),
             cropName: tx.cropName || 'Produce',
             farmerName: tx.farmerName || 'Farmer',
-            buyerName: 'FreshBasket Retail',
+            buyerName: tx.buyerName || 'FreshBasket Retail',
             quantity: tx.quantity,
             unit: tx.unit || 'kg',
             finalPricePerUnit: tx.agreedPrice,
             totalValue: tx.totalAmount,
             saleDate: new Date(tx.createdAt).toISOString().split('T')[0],
-            paymentStatus: 'paid',
+            paymentStatus: (tx.paymentStatus as any) || 'paid',
             receiptNumber: tx.weighmentSlipNo || `FG-SL-${tx.id}`,
             weighmentSlipId: tx.weighmentSlipNo || `WGH-${tx.id}`
           }));
           setSales(mappedSales);
         }
       } catch (err) {
-        console.warn('Connected in hybrid mode. Realtime fallback active:', err);
+        if (import.meta.env.DEV) {
+          console.error(
+            '[FarmGrade Dev Alert] Transactions failed to load from /api/transactions:',
+            err,
+            '\nActionable fix: Check transactions table in PostgreSQL.'
+          );
+        }
+        console.warn('Backend transactions fallback active:', err);
+      }
+
+      // 4. Fetch live bids
+      try {
+        const liveBidsRes = await api.bids.getLiveState();
+        if (liveBidsRes.success && Array.isArray(liveBidsRes.data?.bids) && liveBidsRes.data.bids.length > 0) {
+          const mappedBids: Bid[] = liveBidsRes.data.bids.map((b: any) => ({
+            id: String(b.id),
+            listingId: String(b.listingId),
+            cropName: b.cropName || 'Produce',
+            buyerName: b.buyerName || 'Verified Buyer',
+            buyerCompany: b.buyerCompany || b.buyerName || 'Procurement Buyer',
+            buyerPhone: b.buyerPhone || '+91 94432 10987',
+            buyerRating: 4.8,
+            bidPricePerUnit: Number(b.bidPrice) || Number(b.bidPricePerUnit) || 30,
+            requestedQuantity: Number(b.requestedQuantity) || Number(b.quantity) || 300,
+            unit: b.unit || 'kg',
+            totalAmount: Number(b.totalAmount) || (Number(b.bidPrice) * Number(b.quantity || 1)),
+            offeredPickupDate: 'Today / Tomorrow',
+            pickupPreference: b.pickupPreference || 'Direct Farm Gate Pickup',
+            paymentTerms: b.paymentTerms || 'Immediate UPI',
+            status: b.status as any,
+            createdAt: b.createdAt || new Date().toISOString(),
+            notes: b.notes || undefined
+          }));
+          setBids(mappedBids);
+        }
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.error(
+            '[FarmGrade Dev Alert] Live bids failed to load from /api/bids/live-state:',
+            err,
+            '\nActionable fix: Check bids table and joins in PostgreSQL.'
+          );
+        }
+        console.warn('Backend live bids fallback active:', err);
       }
     }
 

@@ -409,18 +409,18 @@ export const NetRealisationCalculator: React.FC<NetRealisationCalculatorProps> =
     );
     const sourceBids = relevant.length > 0 ? relevant : bids.filter((b) => b.status !== 'rejected' && b.status !== 'cancelled');
 
-    return sourceBids.map((b) => {
+    return sourceBids.map((b: any) => {
       const isFarmGate =
-        (b.pickupOption || '').toLowerCase().includes('farm gate') ||
+        (b.pickupPreference || b.pickupOption || '').toLowerCase().includes('farm gate') ||
         (b.notes || '').toLowerCase().includes('farm gate');
       return {
         id: b.id,
         buyerName: b.buyerName,
-        buyerCompany: b.buyerBusiness,
-        location: b.buyerLocation,
-        distanceKm: b.distanceKm,
-        pickupOption: b.pickupOption || 'Buyer Pickup / Delivery',
-        paymentTerms: b.paymentTerms,
+        buyerCompany: b.buyerCompany || b.buyerBusiness || 'Verified Buyer',
+        location: b.buyerLocation || b.location || 'Regional Market',
+        distanceKm: b.distanceKm || 12,
+        pickupOption: b.pickupPreference || b.pickupOption || 'Buyer Pickup / Delivery',
+        paymentTerms: b.paymentTerms || 'Immediate UPI',
         bidPricePerUnit: b.bidPricePerUnit,
         quantity: quantity,
         unit,

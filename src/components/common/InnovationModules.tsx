@@ -1503,7 +1503,7 @@ export const VoiceMarketAssistantBar: React.FC = () => {
 
     if (safetyConfirmation.type === 'publish_listing' && pendingProduce) {
       addListing({
-        cropKey: pendingProduce.cropName.toLowerCase(),
+        cropKey: pendingProduce.cropName.toLowerCase() as any,
         cropName: pendingProduce.cropName,
         cropTamilName: 'தக்காளி',
         cropHindiName: 'टमाटर',

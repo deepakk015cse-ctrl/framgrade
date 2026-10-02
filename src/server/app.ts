@@ -55,6 +55,10 @@ export function createExpressApp() {
   app.use('/api/farmers', farmersRouter);
   app.use('/api/buyers', buyersRouter);
   app.use('/api/produce', produceRouter);
+  app.use('/api/crops', (_req, res, next) => {
+    _req.url = '/crops';
+    produceRouter(_req, res, next);
+  });
   app.use('/api/market-prices', marketPricesRouter);
   app.use('/api/bids', bidsRouter);
   app.use('/api/transactions', transactionsRouter);
